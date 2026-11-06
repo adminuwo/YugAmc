@@ -1,0 +1,37 @@
+steps:
+  # 1. Build the container image using the root Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:$COMMIT_SHA'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:latest'
+      - '.'
+
+  # 2. Push container image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:$COMMIT_SHA'
+
+  # 3. Deploy container to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'yug-web'
+      - '--image'
+      - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:$COMMIT_SHA'
+      - '--region'
+      - 'asia-south1'
+
+# Fixes Cloud Build service account logging requirement
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:$COMMIT_SHA'
+  - 'asia-south1-docker.pkg.dev/efvframework/cloud-run-source-deploy/yug-web/yug-web:latest'
+
