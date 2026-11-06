@@ -1,13 +1,32 @@
-# Initial setup for standard Node.js project
+# Node modules
 node_modules/
+**/node_modules/
+
+# Environment Variables & Secrets (CRITICAL)
 .env
-.DS_Store
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.cert
+credentials.json
+service-account*.json
+
+# Logs & Diagnostics
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.vscode/
 
-# Application data
+# System & IDE files
+.DS_Store
+_MACOSX/
+Thumbs.db
+.vscode/
+.idea/
+
+# Application generated data
 uploads/
 leads.json
 rag_context.json

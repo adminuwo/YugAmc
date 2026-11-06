@@ -8,7 +8,7 @@ export const UWOLoginModal = ({
   onSuccess,
   initialRegister = false,
   appCode = 'yugamc',
-  apiKey = 'key_yugamc_live_master_2026',
+  apiKey = import.meta.env.VITE_UWO_API_KEY || '',
 }) => {
   const [isRegisterMode, setIsRegisterMode] = useState(initialRegister);
   const [name, setName] = useState('');
@@ -24,9 +24,14 @@ export const UWOLoginModal = ({
 
   if (!isOpen) return null;
 
-  const UNIFIED_API_URL =
-    import.meta.env.VITE_UNIFIED_BACKEND_API ||
-    'https://unified-dashboard-977864306871.asia-south1.run.app/api';
+  const UNIFIED_API_URL = (() => {
+    const envUrl = import.meta.env.VITE_UNIFIED_BACKEND_API;
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl.trim().replace(/\/+$/, '');
+    }
+    // Default to the public UWO SSO API domain
+    return envUrl || 'https://uwo24.com/api';
+  })();
 
   const handleSubmit = async (e) => {
     e.preventDefault();

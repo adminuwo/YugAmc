@@ -139,7 +139,7 @@ const AdminLogin = () => {
                     isOpen={showUwoModal}
                     onClose={() => setShowUwoModal(false)}
                     appCode="yugamc"
-                    apiKey="key_yugamc_live_master_2026"
+                    apiKey={import.meta.env.VITE_UWO_API_KEY || ''}
                     onSuccess={(data) => {
                         setToken(data.token);
                         navigate('/admin/dashboard');

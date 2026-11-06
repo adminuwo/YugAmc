@@ -1,66 +1,76 @@
 const path = require('path');
 const fs = require('fs');
 
-const rootEnv = path.resolve(__dirname, '../../../.env');
-const localEnv = path.resolve(__dirname, '../../.env');
+// Attempt to load .env from standard project locations
+const potentialEnvPaths = [
+  path.resolve(__dirname, '../../../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(process.cwd(), '.env'),
+];
 
-if (fs.existsSync(rootEnv)) {
-  require('dotenv').config({ path: rootEnv });
-} else if (fs.existsSync(localEnv)) {
-  require('dotenv').config({ path: localEnv });
-} else {
-  require('dotenv').config();
+for (const envPath of potentialEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+  }
 }
+require('dotenv').config();
 
-// Fallback defaults for admin/super-admin if not specified
-process.env.SUPER_ADMIN_API_KEY = process.env.SUPER_ADMIN_API_KEY || 'yug-super-admin-api-key';
-process.env.SUPER_ADMIN_WEBHOOK_SECRET = process.env.SUPER_ADMIN_WEBHOOK_SECRET || 'yug-super-admin-secret-2026';
-process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-process.env.ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$Kppp5ml2779/kKnUa1jZaOZd3WrI5a07hX.pVSbXl/H7MQqTIchA6';
+// Determine runtime environment
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const isProduction = NODE_ENV === 'production';
 
-// Safe production fallbacks so container boots successfully in Cloud Run
-process.env.MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://admin_db_user:yugamc%401805@cluster0.xlieshi.mongodb.net/?appName=Cluster0';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'efv_secret_key_2026';
-process.env.EMAIL_USER = process.env.EMAIL_USER || 'admin@uwo24.com';
-process.env.EMAIL_PASS = process.env.EMAIL_PASS || 'zfpr ydnj kilg xynv';
-process.env.GCP_PROJECT_ID = process.env.GCP_PROJECT_ID || 'efvframework';
-process.env.GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || 'yugamc-documents';
-process.env.SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-process.env.SMTP_PORT = process.env.SMTP_PORT || '587';
-process.env.PORT = process.env.PORT || '8080';
-
-const requiredEnv = [
+// Mandatory variables required for core system integrity
+const mandatoryEnv = [
   'MONGO_URI',
   'JWT_SECRET',
+];
+
+// Recommended variables for integrations
+const recommendedEnv = [
   'EMAIL_USER',
   'EMAIL_PASS',
   'GCP_PROJECT_ID',
-  'GCS_BUCKET_NAME'
+  'GCS_BUCKET_NAME',
+  'SUPER_ADMIN_API_KEY',
+  'SUPER_ADMIN_WEBHOOK_SECRET',
+  'ADMIN_PASSWORD_HASH',
 ];
 
-for (const key of requiredEnv) {
-  if (!process.env[key]) {
-    console.warn(`[Config Warning]: Environment variable ${key} is not set.`);
+const missingMandatory = mandatoryEnv.filter((key) => !process.env[key]);
+if (missingMandatory.length > 0) {
+  const errMsg = `[Config Warning]: Missing mandatory environment variables: ${missingMandatory.join(', ')}. Please configure them in your .env file or environment settings.`;
+  if (isProduction) {
+    console.error(`[CRITICAL ERROR]: ${errMsg}`);
+  } else {
+    console.warn(errMsg);
   }
 }
 
+const missingRecommended = recommendedEnv.filter((key) => !process.env[key] && !process.env.ADMIN_PASSWORD);
+if (missingRecommended.length > 0 && !isProduction) {
+  console.info(`[Config Info]: Unset optional integration variables: ${missingRecommended.join(', ')}`);
+}
+
 module.exports = {
+  NODE_ENV,
+  PORT: Number(process.env.PORT) || 8080,
   MONGO_URI: process.env.MONGO_URI,
-  PORT: process.env.PORT || 8080,
   JWT_SECRET: process.env.JWT_SECRET,
-  GCP_PROJECT_ID: process.env.GCP_PROJECT_ID,
-  GOOGLE_LOCATION: process.env.GOOGLE_LOCATION || 'asia-south1',
-  GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
+  ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   SUPER_ADMIN_API_KEY: process.env.SUPER_ADMIN_API_KEY,
   SUPER_ADMIN_WEBHOOK_URL: process.env.SUPER_ADMIN_WEBHOOK_URL,
   SUPER_ADMIN_PLATFORM_ID: process.env.SUPER_ADMIN_PLATFORM_ID || 'yugamc-id',
   SUPER_ADMIN_WEBHOOK_SECRET: process.env.SUPER_ADMIN_WEBHOOK_SECRET,
-  ADMIN_USERNAME: process.env.ADMIN_USERNAME,
-  ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: Number(process.env.SMTP_PORT) || 587,
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
+  GCP_PROJECT_ID: process.env.GCP_PROJECT_ID,
+  GOOGLE_LOCATION: process.env.GOOGLE_LOCATION || 'asia-south1',
+  GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   GCS_BUCKET_NAME: process.env.GCS_BUCKET_NAME,
-  ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map(o => o.trim()),
+  ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map((o) => o.trim()),
 };
+

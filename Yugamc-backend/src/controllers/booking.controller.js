@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const BookVisit = require('../models/bookVisit.model');
 const { sendBookVisitEmail } = require('../services/email.service');
 const { sendWebhookNotification } = require('../services/webhook.service');
 const { sendRealtimeLead } = require('../services/sse.service');
+const { saveLocalLead, getLocalLeads } = require('../utils/localStore');
 
 const createBooking = async (req, res) => {
   const { name, phone, email, location, budget, visitDate, timeSlot } = req.body;
@@ -11,35 +13,59 @@ const createBooking = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Required fields missing.' });
   }
 
-  // 1. Save to MongoDB
+  // 1. Save to MongoDB if connected
   let bookingId = null;
-  try {
-    const bookingEntry = new BookVisit({ name, phone, email, location, budget, visitDate, timeSlot });
-    const savedBooking = await bookingEntry.save();
-    bookingId = savedBooking._id;
-    console.log(`[DB SUCCESS] Booking saved with ID: ${bookingId}`);
-  } catch (dbError) {
-    console.error('[DB ERROR] Failed to save booking:', dbError);
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const bookingEntry = new BookVisit({ name, phone, email, location, budget, visitDate, timeSlot });
+      const savedBooking = await bookingEntry.save();
+      bookingId = savedBooking._id;
+      console.log(`[DB SUCCESS] Booking saved with ID: ${bookingId}`);
+    } catch (dbError) {
+      console.error('[DB ERROR] Failed to save booking:', dbError.message);
+    }
   }
 
-  // 2. Send Email Notification
-  await sendBookVisitEmail({ name, phone, email, location, budget, visitDate, timeSlot, bookingId });
-
-  if (bookingId) {
-    // --- Trigger Webhook for Super Admin ---
-    sendWebhookNotification('NEW_BOOKING', { name, phone, email, location, budget, visitDate, timeSlot, bookingId });
-    sendRealtimeLead('NEW_BOOKING', { name, phone, email, location, budget, visitDate, timeSlot, bookingId });
-
-    res.status(200).json({ success: true, message: 'Your site visit has been booked successfully! Our team will contact you shortly.' });
-  } else {
-    res.status(500).json({ success: false, message: 'Server error. Please try again or call us directly.' });
+  // Fallback to local storage if DB is disconnected/failed
+  if (!bookingId) {
+    bookingId = new mongoose.Types.ObjectId();
+    saveLocalLead({
+      _id: bookingId.toString(),
+      name,
+      phone,
+      email,
+      location,
+      budget,
+      visitDate,
+      timeSlot,
+      type: 'booking',
+      timestamp: new Date().toISOString(),
+    });
   }
+
+  // 2. Send Email Notification (non-blocking)
+  sendBookVisitEmail({ name, phone, email, location, budget, visitDate, timeSlot, bookingId }).catch((err) => {
+    console.warn('[Email Warning]:', err.message);
+  });
+
+  // 3. Trigger Webhook & SSE
+  sendWebhookNotification('NEW_BOOKING', { name, phone, email, location, budget, visitDate, timeSlot, bookingId });
+  sendRealtimeLead('NEW_BOOKING', { name, phone, email, location, budget, visitDate, timeSlot, bookingId });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Your site visit has been booked successfully! Our team will contact you shortly.',
+  });
 };
 
 const getBookings = async (req, res) => {
   try {
-    const leads = await BookVisit.find().sort({ timestamp: -1 });
-    res.json({ leads });
+    if (mongoose.connection.readyState === 1) {
+      const leads = await BookVisit.find().sort({ timestamp: -1 });
+      return res.json({ leads });
+    }
+    const localLeads = getLocalLeads('booking');
+    res.json({ leads: localLeads });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching book visit leads' });
   }
@@ -47,8 +73,10 @@ const getBookings = async (req, res) => {
 
 const deleteBooking = async (req, res) => {
   try {
-    await BookVisit.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Book visit lead deleted successfully' });
+    if (mongoose.connection.readyState === 1) {
+      await BookVisit.findByIdAndDelete(req.params.id);
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: 'Error deleting lead' });
   }
@@ -57,5 +85,5 @@ const deleteBooking = async (req, res) => {
 module.exports = {
   createBooking,
   getBookings,
-  deleteBooking
+  deleteBooking,
 };

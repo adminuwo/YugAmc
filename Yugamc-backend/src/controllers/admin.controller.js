@@ -26,7 +26,12 @@ const login = async (req, res) => {
   ].filter(Boolean);
 
   const isUserValid = validUsers.includes(lowerUser);
-  const isPassValid = (env.ADMIN_PASSWORD_HASH && await bcrypt.compare(rawPass, env.ADMIN_PASSWORD_HASH)) || rawPass === 'Yugamc@123';
+  let isPassValid = false;
+  if (env.ADMIN_PASSWORD_HASH) {
+    isPassValid = await bcrypt.compare(rawPass, env.ADMIN_PASSWORD_HASH);
+  } else if (env.ADMIN_PASSWORD) {
+    isPassValid = rawPass === env.ADMIN_PASSWORD;
+  }
 
   if (isUserValid && isPassValid) {
     const token = jwt.sign({ username: rawUser }, env.JWT_SECRET, { expiresIn: '24h' });
