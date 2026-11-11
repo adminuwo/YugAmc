@@ -12,6 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@azure/storage-blob": "^12.34.0",
     "@google-cloud/storage": "^7.19.0",
     "@google-cloud/vertexai": "^1.10.2",
     "@google/generative-ai": "^0.24.1",
