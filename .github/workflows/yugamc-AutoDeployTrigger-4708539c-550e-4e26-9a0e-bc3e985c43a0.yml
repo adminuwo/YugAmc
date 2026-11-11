@@ -1,0 +1,49 @@
+name: Trigger auto deployment for yugamc
+
+# When this action will be executed
+on:
+  # Automatically trigger it when detected changes in repo
+  push:
+    branches: 
+      [ main ]
+    paths:
+    - '**'
+    - '.github/workflows/yugamc-AutoDeployTrigger-4708539c-550e-4e26-9a0e-bc3e985c43a0.yml'
+
+  # Allow manual trigger 
+  workflow_dispatch:      
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write #This is required for requesting the OIDC JWT Token
+      contents: read #Required when GH token is used to authenticate with private repo
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.YUGAMC_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.YUGAMC_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.YUGAMC_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          appSourcePath: ${{ github.workspace }}
+          _dockerfilePathKey_: _dockerfilePath_
+          _targetLabelKey_: _targetLabel_
+          registryUrl: yugamcacr.azurecr.io
+          registryUsername: ${{ secrets.YUGAMC_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.YUGAMC_REGISTRY_PASSWORD }}
+          containerAppName: yugamc
+          resourceGroup: yugamc
+          imageToBuild: yugamcacr.azurecr.io/yugamc:${{ github.sha }}
+          _buildArgumentsKey_: |
+            _buildArgumentsValues_
+
+
